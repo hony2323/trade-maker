@@ -1,16 +1,20 @@
-# This is a sample Python script.
-
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+from src.consumer import MarketDataConsumer
+from src.logger import logger
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+def process_market_data(message):
+    """
+    Process the incoming market data message.
+    :param message: The parsed message from RabbitMQ.
+    """
+    # Example: Print the message or pass it to the trade evaluator
+    logger.info(f"Processing market data: {message}")
+    # Add your trade evaluation logic here
 
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
+if __name__ == "__main__":
+    RABBITMQ_URL = "amqp://guest:guest@localhost:5672/"  # Update with your RabbitMQ connection URL
+    QUEUE_NAME = "market_data"
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    consumer = MarketDataConsumer(rabbitmq_url=RABBITMQ_URL, queue_name=QUEUE_NAME, process_callback=process_market_data)
+    consumer.start_consuming()
