@@ -1,20 +1,29 @@
-from src.consumer import MarketDataConsumer
+from src.consumer import RMQConsumer
 from src.logger import logger
+from src.configuration import RmqConfiguration
 
 
-def process_market_data(message):
+def process_message(message):
     """
-    Process the incoming market data message.
-    :param message: The parsed message from RabbitMQ.
+    Process an incoming message.
+    :param message: The message body as a string.
     """
-    # Example: Print the message or pass it to the trade evaluator
-    logger.info(f"Processing market data: {message}")
-    # Add your trade evaluation logic here
+    logger.info(f"Processing message: {message}")
+    # Add your trade-making logic here
 
 
 if __name__ == "__main__":
-    RABBITMQ_URL = "amqp://guest:guest@localhost:5672/"  # Update with your RabbitMQ connection URL
-    QUEUE_NAME = "market_data"
 
-    consumer = MarketDataConsumer(rabbitmq_url=RABBITMQ_URL, queue_name=QUEUE_NAME, process_callback=process_market_data)
-    consumer.start_consuming()
+    consumer = RMQConsumer(rabbitmq_url=RmqConfiguration.RABBITMQ_URL,
+                                   exchange_name=RmqConfiguration.EXCHANGE_NAME,
+                                   queue_name=RmqConfiguration.QUEUE_NAME,
+                                   routing_key=RmqConfiguration.ROUTING_KEY,
+                                   max_queue_length=RmqConfiguration.QUEUE_LENGTH,)
+    try:
+        consumer.connect()  # Connect to RabbitMQ
+        consumer.consume(process_message)  # Start consuming messages
+    except KeyboardInterrupt:
+        logger.info("Shutting down...")
+    finally:
+        consumer.close()  # Ensure the connection is closed properly
+        logger.info("Application stopped.")
