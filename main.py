@@ -8,7 +8,7 @@ def process_message(message):
     Process an incoming message.
     :param message: The message body as a string.
     """
-    logger.info(f"Processing message: {message}")
+    logger.debug(f"Processing message: {message}")
     # Add your trade-making logic here
 
 
