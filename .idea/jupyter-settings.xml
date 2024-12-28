@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="JupyterPersistentConnectionParameters">
+    <option name="moduleParameters">
+      <map>
+        <entry key="$PROJECT_DIR$/.idea/trade-maker.iml">
+          <value>
+            <JupyterConnectionParameters>
+              <option name="managed" value="true" />
+              <option name="sdkName" value="" />
+              <option name="environmentVariables">
+                <map>
+                  <entry name="BINANCE_API_KEY" value="fGkhZaYxDxuydPdTEgdQfmrsu8fSXWVg0dHSWimsFCQAspxjIRc4POJQQbMXLN46" />
+                  <entry name="BINANCE_API_SECRET" value="EouUa1lgULpZLApGu03pF3bM8FfrmMpfGkM388wOoE4BeXvlIrGcIbo60aDRpUop" />
+                </map>
+              </option>
+            </JupyterConnectionParameters>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>

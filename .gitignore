@@ -166,3 +166,8 @@ src/data
 src/logs/
 data/
 logs/
+api_key.txt
+
+api_secret.txt
+
+api_key.json
