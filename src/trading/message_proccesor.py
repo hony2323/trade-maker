@@ -1,60 +1,58 @@
-from src.logger import logger
-
-
 class MessageProcessor:
-    def __init__(self, trade_evaluator, trade_executor, position_manager, fee_calculator):
+    def __init__(self, simulators, arbitrage_detector, base_trade_amount=100):
         """
-        Initialize the MessageProcessor.
-        :param trade_evaluator: Instance of TradeEvaluator.
-        :param trade_executor: Instance of TradeExecutor.
-        :param position_manager: Instance of PositionManager.
-        :param fee_calculator: Instance of FeeCalculator.
+        Initialize the message processor.
+        :param simulators: Dictionary of simulators for each exchange.
+        :param arbitrage_detector: Instance of ArbitrageDetector.
+        :param base_trade_amount: Trade amount in USD before applying leverage.
         """
-        self.trade_evaluator = trade_evaluator
-        self.trade_executor = trade_executor
-        self.position_manager = position_manager
-        self.fee_calculator = fee_calculator
+        self.simulators = simulators  # {"coinbase": SimulatedExchange, "bybit": SimulatedExchange, ...}
+        self.arbitrage_detector = arbitrage_detector
+        self.base_trade_amount = base_trade_amount  # USD before leverage
 
     def process_message(self, message):
         """
-        Process a single message through the trading flow.
-        :param message: The incoming message as a dictionary.
+        Process a single message, detect arbitrage opportunities, and execute trades.
+        :param message: Trading data (normalized).
         """
         try:
-            logger.debug(f"Processing message: {message}")
+            symbol = message["instrument_id"].replace("-", "/")
+            self.arbitrage_detector.update_prices(message)
 
-            # Step 1: Evaluate the trade opportunity
-            evaluation_result = self.trade_evaluator.evaluate(message)
-            if not evaluation_result:
-                logger.debug("No trade opportunity found.")
-                return
-
-            logger.debug(f"Trade opportunity detected: {evaluation_result}")
-
-            # Step 2: Extract trade details
-            instrument_id = evaluation_result["instrument_id"]
-            side = evaluation_result["trade_decision"].lower()  # 'buy' or 'sell'
-            price = evaluation_result["price"]
-            amount = 100 / price  # Example: Buy 100 USD worth of the asset
-
-            # Step 3: Check if a position already exists
-            if instrument_id in self.position_manager.positions:
-                logger.debug(f"Position already exists for {instrument_id}. Skipping trade.")
-                return
-
-            # Step 4: Execute the trade
-            order = self.trade_executor.execute_trade(instrument_id, side, amount, price)
-            if not order:
-                logger.error("Trade execution failed.")
-                return
-
-            logger.info(f"Trade executed successfully: {order}")
-
-            # Step 5: Add the position
-            self.position_manager.add_position(instrument_id, amount, price)
-
-            # Step 6: Calculate fees
-            fee = self.fee_calculator.calculate_fee(amount, price, order_type="limit" if price else "market")
-            logger.info(f"Estimated fee for the trade: {fee}")
+            # Detect arbitrage opportunity
+            opportunity = self.arbitrage_detector.detect_opportunity(symbol)
+            if opportunity:
+                buy_exchange, sell_exchange, spread = opportunity
+                print(f"Arbitrage opportunity detected: {spread:.2f}%")
+                trade_amount = self.base_trade_amount / self.simulators[buy_exchange].leverage
+                self._execute_arbitrage(symbol, buy_exchange, sell_exchange, trade_amount)
+            else:
+                print(f"No arbitrage opportunity for {symbol}.")
         except Exception as e:
-            logger.error(f"Error processing message: {e}", exc_info=True)
+            print(f"Error processing message: {e}")
+
+    def _execute_arbitrage(self, symbol, buy_exchange, sell_exchange, amount):
+        """
+        Execute arbitrage trades on the given exchanges.
+        :param symbol: Trading pair (e.g., "BTC/USDT").
+        :param buy_exchange: Exchange to buy from.
+        :param sell_exchange: Exchange to sell on.
+        :param amount: Amount to trade.
+        """
+        try:
+            buy_simulator = self.simulators[buy_exchange]
+            sell_simulator = self.simulators[sell_exchange]
+
+            # Place buy and sell orders
+            buy_price = buy_simulator.balances[symbol]
+            sell_price = sell_simulator.balances[symbol]
+
+            buy_order = buy_simulator.place_order(symbol, side="buy", amount=amount, price=buy_price)
+            sell_order = sell_simulator.place_order(symbol, side="sell", amount=amount, price=sell_price)
+
+            # Calculate and log profit
+            profit = (sell_price - buy_price) * amount - (buy_order["fee"] + sell_order["fee"])
+            print(f"Arbitrage trade executed: Profit = {profit:.2f} {symbol.split('/')[1]}")
+
+        except Exception as e:
+            print(f"Error executing arbitrage: {e}")
