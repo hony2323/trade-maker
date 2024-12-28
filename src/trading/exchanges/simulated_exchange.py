@@ -30,10 +30,20 @@ class SimulatedExchange:
         return os.path.join(self.storage_path, f"{self.exchange_name}_data.json")
 
     def _load_persistent_data(self):
-        """Load balances and orders from persistent storage."""
+        """Load balances and orders from persistent storage, or create the file if it doesn't exist."""
         os.makedirs(self.storage_path, exist_ok=True)
         storage_file = self._get_storage_file()
-        if os.path.exists(storage_file):
+
+        if not os.path.exists(storage_file):
+            # If the file does not exist, initialize it with default values
+            initial_data = {
+                "balances": dict(self.balances),
+                "orders": [],
+            }
+            with open(storage_file, "w") as file:
+                json.dump(initial_data, file, indent=4)
+        else:
+            # Load existing data from the file
             with open(storage_file, "r") as file:
                 data = json.load(file)
                 self.balances.update(data.get("balances", {}))

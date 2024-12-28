@@ -1,0 +1,19 @@
+{
+    "balances": {
+        "USDT": 899.8,
+        "BTC": 0.02
+    },
+    "orders": [
+        {
+            "id": "39456734-1df1-466a-8234-8e33de98b623",
+            "symbol": "BTC/USDT",
+            "side": "buy",
+            "amount": 0.02,
+            "price": 50000,
+            "margin_cost": 100.0,
+            "fee": 0.2,
+            "status": "filled",
+            "created_at": "2024-12-28T18:17:06.720546"
+        }
+    ]
+}
