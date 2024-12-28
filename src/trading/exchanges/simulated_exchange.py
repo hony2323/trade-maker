@@ -21,20 +21,22 @@ class SimulatedExchange:
         """
         return dict(self.balances)
 
-    def get_fee(self, symbol, order_type, amount):
+    def get_fee(self, symbol, order_type, amount, price):
         """
         Calculate the trading fee for a given order.
+        :param price:
         :param symbol: Trading pair (e.g., 'BTC/USDT').
         :param order_type: 'market' or 'limit'.
         :param amount: The amount being traded.
         :return: Calculated fee.
         """
         # For simplicity, fees are proportional to the trade amount
-        return amount * self.fee_rate
+        return price * amount * self.fee_rate
 
-    def place_order(self, symbol, side, order_type, amount, price=None):
+    def place_order(self, symbol, side, order_type, amount=None, quote_amount=None, price=1):
         """
         Simulate placing an order.
+        :param quote_amount: Optional; specify the quote amount for market orders.
         :param symbol: Trading pair (e.g., 'BTC/USDT').
         :param side: 'buy' or 'sell'.
         :param order_type: 'market' or 'limit'.
@@ -42,10 +44,18 @@ class SimulatedExchange:
         :param price: Optional; price for limit orders.
         :return: Dictionary representing the order details.
         """
+
+        if amount is None and quote_amount is None:
+            raise ValueError("Either 'amount' or 'quote_amount' must be provided.")
+        if amount and quote_amount:
+            raise ValueError("Provide either 'amount' or 'quote_amount', not both.")
+        if quote_amount:
+            amount = quote_amount / price
+
         # Check if sufficient balance exists for the trade
         base_asset, quote_asset = symbol.split('/')
         if side == 'buy':
-            required_balance = (price or 1) * amount
+            required_balance = price * amount
             if self.balances[quote_asset] < required_balance:
                 raise ValueError(f"Insufficient {quote_asset} balance to place buy order.")
         elif side == 'sell':
@@ -79,7 +89,7 @@ class SimulatedExchange:
         base_asset, quote_asset = order['symbol'].split('/')
         amount = order['amount']
         price = order['price'] or 1  # Market price is assumed as 1 for simplicity
-        fee = self.get_fee(order['symbol'], order['type'], amount)
+        fee = self.get_fee(order['symbol'], order['type'], amount, price)
 
         # Ensure assets exist in balances
         self.balances.setdefault(base_asset, 0)
