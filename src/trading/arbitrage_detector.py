@@ -29,26 +29,62 @@ class ArbitrageDetector:
         self.price_state[exchange_name][symbol].append({"price": price, "timestamp": timestamp})
 
     def detect_opportunity(self, symbol):
-        """
-        Detect arbitrage opportunities for a given trading pair.
-        :param symbol: Trading pair (e.g., "BTC/USDT").
-        :return: Tuple (buy_exchange, buy_price, sell_exchange, sell_price, spread) or None.
-        """
         prices = {}
         for exchange_name, symbols in self.price_state.items():
             if symbol in symbols and symbols[symbol]:
-                prices[exchange_name] = symbols[symbol][-1]["price"]  # Latest price
+                prices[exchange_name] = symbols[symbol][-1]["price"]
 
         if len(prices) < 2:
-            return None  # Not enough exchanges for arbitrage
+            return None
 
-        # Find the lowest and highest price
-        buy_exchange = min(prices, key=prices.get)
-        sell_exchange = max(prices, key=prices.get)
-        buy_price = prices[buy_exchange]
-        sell_price = prices[sell_exchange]
-        spread = ((sell_price - buy_price) / buy_price) * 100
+        opportunities = []
 
-        if spread >= self.threshold:
-            return buy_exchange, buy_price, sell_exchange, sell_price, spread
-        return None
+        # Detect arbitrage opportunities for opening positions
+        for buy_exchange, buy_price in prices.items():
+            for sell_exchange, sell_price in prices.items():
+                if buy_exchange == sell_exchange:
+                    continue
+                spread = ((sell_price - buy_price) / buy_price) * 100
+                if spread >= self.threshold:
+                    buy_simulator = self.simulators[buy_exchange]
+                    sell_simulator = self.simulators[sell_exchange]
+                    if (buy_simulator.positions[symbol]["long"] == 0 and
+                            sell_simulator.positions[symbol]["short"] == 0):
+                        opportunities.append({
+                            "type": "open",
+                            "symbol": symbol,
+                            "buy_exchange": buy_exchange,
+                            "buy_price": buy_price,
+                            "sell_exchange": sell_exchange,
+                            "sell_price": sell_price,
+                            "spread": spread,
+                        })
+
+        # Detect opportunities to close positions
+        for exchange_name, simulator in self.simulators.items():
+            if symbol in simulator.positions:
+                position = simulator.positions[symbol]
+                if position["long"] > 0:  # Close long position
+                    sell_price = prices.get(exchange_name)
+                    if sell_price:
+                        opportunities.append({
+                            "type": "close",
+                            "symbol": symbol,
+                            "exchange": exchange_name,
+                            "side": "long",
+                            "price": sell_price,
+                            "amount": position["long"],
+                        })
+                if position["short"] > 0:  # Close short position
+                    buy_price = prices.get(exchange_name)
+                    if buy_price:
+                        opportunities.append({
+                            "type": "close",
+                            "symbol": symbol,
+                            "exchange": exchange_name,
+                            "side": "short",
+                            "price": buy_price,
+                            "amount": position["short"],
+                        })
+
+        return opportunities if opportunities else None
