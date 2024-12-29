@@ -6,6 +6,7 @@ class MessageProcessor:
 
     def process_message(self, message):
         try:
+            print(f"Processing message: {message}")
             symbol = message["instrument_id"].replace("-", "/")
             self.arbitrage_detector.update_prices(message)
 
@@ -51,6 +52,7 @@ class MessageProcessor:
             buy_price = opportunity["buy_price"]
             sell_price = opportunity["sell_price"]
             amount = opportunity["amount"]
+            pair_key = opportunity["pair_key"]
 
             buy_simulator = self.simulators[buy_exchange]
             sell_simulator = self.simulators[sell_exchange]
@@ -59,14 +61,23 @@ class MessageProcessor:
             buy_result = buy_simulator.close_position(symbol, "long", amount, buy_price)
             sell_result = sell_simulator.close_position(symbol, "short", amount, sell_price)
 
-            # Extract individual PnL
+            # Extract individual PnL and entry prices
             pnl1 = buy_result["pnl"]
             pnl2 = sell_result["pnl"]
             total_pnl = pnl1 + pnl2
+            buy_entry_price = buy_simulator.positions[symbol]["entry_price"]
+            sell_entry_price = sell_simulator.positions[symbol]["entry_price"]
 
-            # Print summary in one line
-            print(f"Closed positions: Long on {buy_exchange} ({buy_price}) and Short on {sell_exchange} ({sell_price}), "
-                  f"Amount: {amount} {symbol}, PnL: Long = {pnl1:.2f}, Short = {pnl2:.2f}, Total = {total_pnl:.2f}")
+            # Print summary
+            print(
+                f"Closed positions: Long on {buy_exchange} (Entry: {buy_entry_price}, Close: {buy_price}) "
+                f"and Short on {sell_exchange} (Entry: {sell_entry_price}, Close: {sell_price}), "
+                f"Amount: {amount} {symbol}, "
+                f"PnL: Long = {pnl1:.2f}, Short = {pnl2:.2f}, Total = {total_pnl:.2f}"
+            )
+
+            # Remove the pair key from active arbitrage pairs
+            self.arbitrage_detector.arbitrage_pairs.discard(pair_key)
 
             return total_pnl
         except Exception as e:
