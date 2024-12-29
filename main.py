@@ -16,7 +16,7 @@ def main():
     arbitrage_detector = ArbitrageDetector(simulators, threshold=0.5)
 
     # Create MessageProcessor
-    processor = MessageProcessor(simulators, arbitrage_detector, base_trade_amount=100)
+    processor = MessageProcessor(simulators, arbitrage_detector, base_trade_amount=10)
 
     # Perform a hard reset for all simulators (reset balances and persist)
     for name, simulator in simulators.items():

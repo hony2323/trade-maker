@@ -87,13 +87,6 @@ class SimulatedExchange:
         return amount * price * self.fee_rate
 
     def place_order(self, symbol, side, amount, price):
-        """
-        Place an order with margin trading support.
-        :param symbol: Trading pair, e.g., 'BTC/USDT'.
-        :param side: 'buy' (long) or 'sell' (short).
-        :param amount: Order size.
-        :param price: Current market price.
-        """
         base_asset, quote_asset = symbol.split('/')
         margin_cost = (price * amount) / self.leverage
         fee = self.get_fee(amount, price)
@@ -105,6 +98,7 @@ class SimulatedExchange:
             self.real_balance[quote_asset] -= total_cost
             self.loaned_balance[base_asset] += amount * self.leverage
             self.positions[symbol]["long"] += amount
+            self.positions[symbol]["entry_price"] = price  # Set entry price for long positions
 
         elif side == 'sell':  # Short position
             if self.real_balance[quote_asset] < total_cost:
@@ -112,19 +106,11 @@ class SimulatedExchange:
             self.real_balance[quote_asset] -= total_cost
             self.loaned_balance[quote_asset] += margin_cost * self.leverage
             self.positions[symbol]["short"] += amount
+            self.positions[symbol]["entry_price"] = price  # Set entry price for short positions
 
-        # Persist the updated state
         self._save_persistent_data()
 
     def close_position(self, symbol, side, amount, price):
-        """
-        Close an open position.
-        :param symbol: Trading pair, e.g., 'BTC/USDT'.
-        :param side: 'long' or 'short'.
-        :param amount: Amount to close.
-        :param price: Current market price.
-        :return: Dictionary of the closing details.
-        """
         if symbol not in self.positions:
             raise ValueError(f"No open positions for symbol {symbol}.")
         if side not in self.positions[symbol] or self.positions[symbol][side] < amount:
@@ -132,20 +118,24 @@ class SimulatedExchange:
 
         base_asset, quote_asset = symbol.split('/')
         pnl = 0
+        entry_price = self.positions[symbol].get("entry_price")
 
-        # Adjust balances and calculate profit/loss
+        if not entry_price:
+            raise ValueError(f"Entry price not set for {side} position in {symbol}.")
+
         if side == 'long':
             self.positions[symbol]["long"] -= amount
-            self.loaned_balance[base_asset] -= amount * self.leverage
-            pnl = (price * amount) - (price * amount / self.leverage) - self.get_fee(amount, price)
+            loaned_amount = amount * entry_price
+            self.loaned_balance[base_asset] -= loaned_amount
+            pnl = (price * amount) - loaned_amount - self.get_fee(amount, price)
             self.real_balance[quote_asset] += pnl
         elif side == 'short':
             self.positions[symbol]["short"] -= amount
-            self.loaned_balance[quote_asset] -= amount * price * self.leverage
-            pnl = (price * amount / self.leverage) - (price * amount) - self.get_fee(amount, price)
+            loaned_amount = amount * entry_price
+            self.loaned_balance[quote_asset] -= loaned_amount
+            pnl = loaned_amount - (price * amount) - self.get_fee(amount, price)
             self.real_balance[quote_asset] += pnl
 
-        # Persist the updated state
         self._save_persistent_data()
 
         return {
