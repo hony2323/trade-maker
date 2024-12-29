@@ -65,8 +65,8 @@ class MessageProcessor:
             pnl1 = buy_result["pnl"]
             pnl2 = sell_result["pnl"]
             total_pnl = pnl1 + pnl2
-            buy_entry_price = buy_simulator.positions[symbol]["entry_price"]
-            sell_entry_price = sell_simulator.positions[symbol]["entry_price"]
+            buy_entry_price = buy_simulator.positions[symbol]["long_entry_price"]
+            sell_entry_price = sell_simulator.positions[symbol]["short_entry_price"]
 
             # Print summary
             print(

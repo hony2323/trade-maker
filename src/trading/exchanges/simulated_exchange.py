@@ -27,7 +27,7 @@ class SimulatedExchange:
         else:
             self.real_balance = defaultdict(float, initial_funds or {})
             self.loaned_balance = defaultdict(float)
-            self.positions = defaultdict(lambda: {"long": 0, "short": 0})
+            self.positions = defaultdict(lambda: {"long": 0, "short": 0, "long_entry_price": None, "short_entry_price": None})
             # makedirs
             os.makedirs(storage_dir, exist_ok=True)
             self._save_persistent_data()
@@ -35,36 +35,38 @@ class SimulatedExchange:
     def get_balance(self):
         """
         Return the current balances, including real and loaned funds.
-        :return: Dictionary of real and loaned balances.
         """
         return {
             "real_balance": dict(self.real_balance),
             "loaned_balance": dict(self.loaned_balance),
+            "positions": {symbol: {
+                "long": data["long"],
+                "short": data["short"],
+                "long_entry_price": data["long_entry_price"],
+                "short_entry_price": data["short_entry_price"],
+            } for symbol, data in self.positions.items()},
         }
 
     def _save_persistent_data(self):
-        """
-        Save current state to a persistent storage file.
-        """
         if not self.persist:
             return
         state = {
             "real_balance": dict(self.real_balance),
             "loaned_balance": dict(self.loaned_balance),
-            "positions": dict(self.positions),
+            "positions": dict(self.positions),  # Save the updated structure
         }
         with open(self.storage_file, "w") as file:
-            json.dump(state, file, indent=4)
+            json.dump(state, file)
 
     def _load_persistent_data(self):
-        """
-        Load state from a persistent storage file.
-        """
         with open(self.storage_file, "r") as file:
             state = json.load(file)
         self.real_balance = defaultdict(float, state.get("real_balance", {}))
         self.loaned_balance = defaultdict(float, state.get("loaned_balance", {}))
-        self.positions = defaultdict(lambda: {"long": 0, "short": 0}, state.get("positions", {}))
+        self.positions = defaultdict(
+            lambda: {"long": 0, "short": 0, "long_entry_price": None, "short_entry_price": None},
+            state.get("positions", {})
+        )
 
     def hard_reset(self, initial_funds=None):
         """
@@ -73,7 +75,7 @@ class SimulatedExchange:
         """
         self.real_balance = defaultdict(float, initial_funds or {})
         self.loaned_balance = defaultdict(float)
-        self.positions = defaultdict(lambda: {"long": 0, "short": 0})
+        self.positions = defaultdict(lambda: {"long": 0, "short": 0, "long_entry_price": None, "short_entry_price": None})
         self._save_persistent_data()
         print(f"[{self.exchange_name}] Hard reset performed. Balances set to initial state.")
 
@@ -97,14 +99,16 @@ class SimulatedExchange:
                 raise ValueError(f"Insufficient {quote_asset} balance for margin.")
             self.real_balance[quote_asset] -= total_cost
             self.positions[symbol]["long"] += amount
-            self.positions[symbol]["entry_price"] = price  # Set entry price for long positions
+            if self.positions[symbol].get("long_entry_price") is None:
+                self.positions[symbol]["long_entry_price"] = price  # Set entry price for long positions
 
         elif side == 'sell':  # Short position
             if self.real_balance[quote_asset] < total_cost:
                 raise ValueError(f"Insufficient {quote_asset} balance for margin.")
             self.real_balance[quote_asset] -= total_cost
             self.positions[symbol]["short"] += amount
-            self.positions[symbol]["entry_price"] = price  # Set entry price for short positions
+            if self.positions[symbol].get("short_entry_price") is None:
+                self.positions[symbol]["short_entry_price"] = price  # Set entry price for short positions
 
         self._save_persistent_data()
 
@@ -116,24 +120,32 @@ class SimulatedExchange:
 
         base_asset, quote_asset = symbol.split('/')
         pnl = 0
-        entry_price = self.positions[symbol].get("entry_price")
 
-        if not entry_price:
-            raise ValueError(f"Entry price not set for {side} position in {symbol}.")
-
-        # Adjust positions and calculate PnL
         if side == 'long':
+            entry_price = self.positions[symbol].get("long_entry_price")
+            if not entry_price:
+                raise ValueError(f"Entry price not set for long position in {symbol}.")
+
             self.positions[symbol]["long"] -= amount
             pnl = (price - entry_price) * amount - self.get_fee(amount, price)
             self.real_balance[quote_asset] += pnl + (entry_price * amount / self.leverage)
+
+            # Clear entry price if the long position is fully closed
+            if self.positions[symbol]["long"] == 0:
+                self.positions[symbol]["long_entry_price"] = None
+
         elif side == 'short':
+            entry_price = self.positions[symbol].get("short_entry_price")
+            if not entry_price:
+                raise ValueError(f"Entry price not set for short position in {symbol}.")
+
             self.positions[symbol]["short"] -= amount
             pnl = (entry_price - price) * amount - self.get_fee(amount, price)
             self.real_balance[quote_asset] += pnl + (entry_price * amount / self.leverage)
 
-        # Clear entry price if the position is fully closed
-        if self.positions[symbol][side] == 0:
-            self.positions[symbol]["entry_price"] = None
+            # Clear entry price if the short position is fully closed
+            if self.positions[symbol]["short"] == 0:
+                self.positions[symbol]["short_entry_price"] = None
 
         self._save_persistent_data()
 

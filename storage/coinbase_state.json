@@ -1,16 +1,1 @@
-{
-    "real_balance": {
-        "USD": 959.0038244218966
-    },
-    "loaned_balance": {
-        "USD": 1.8026418026417872,
-        "BTC": -199.55991967871486
-    },
-    "positions": {
-        "BTC/USD": {
-            "long": 0.0,
-            "short": 0.0,
-            "entry_price": 49800
-        }
-    }
-}
+{"real_balance": {"USD": 999.5979797979797}, "loaned_balance": {}, "positions": {"BTC/USD": {"long": 0.0, "short": 0.0, "long_entry_price": null, "short_entry_price": null}}}
