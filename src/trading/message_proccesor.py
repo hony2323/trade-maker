@@ -55,9 +55,20 @@ class MessageProcessor:
             buy_simulator = self.simulators[buy_exchange]
             sell_simulator = self.simulators[sell_exchange]
 
-            buy_simulator.close_position(symbol, "long", amount, buy_price)
-            sell_simulator.close_position(symbol, "short", amount, sell_price)
+            # Close the long and short positions
+            buy_result = buy_simulator.close_position(symbol, "long", amount, buy_price)
+            sell_result = sell_simulator.close_position(symbol, "short", amount, sell_price)
 
-            print(f"Closed positions: Long on {buy_exchange}, Short on {sell_exchange}, Amount: {amount} {symbol}")
+            # Extract individual PnL
+            pnl1 = buy_result["pnl"]
+            pnl2 = sell_result["pnl"]
+            total_pnl = pnl1 + pnl2
+
+            # Print summary in one line
+            print(f"Closed positions: Long on {buy_exchange} ({buy_price}) and Short on {sell_exchange} ({sell_price}), "
+                  f"Amount: {amount} {symbol}, PnL: Long = {pnl1:.2f}, Short = {pnl2:.2f}, Total = {total_pnl:.2f}")
+
+            return total_pnl
         except Exception as e:
             print(f"Error closing positions: {e}")
+            return None
