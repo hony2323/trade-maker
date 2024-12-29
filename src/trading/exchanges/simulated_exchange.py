@@ -96,7 +96,6 @@ class SimulatedExchange:
             if self.real_balance[quote_asset] < total_cost:
                 raise ValueError(f"Insufficient {quote_asset} balance for margin.")
             self.real_balance[quote_asset] -= total_cost
-            self.loaned_balance[base_asset] += amount * self.leverage
             self.positions[symbol]["long"] += amount
             self.positions[symbol]["entry_price"] = price  # Set entry price for long positions
 
@@ -104,7 +103,6 @@ class SimulatedExchange:
             if self.real_balance[quote_asset] < total_cost:
                 raise ValueError(f"Insufficient {quote_asset} balance for margin.")
             self.real_balance[quote_asset] -= total_cost
-            self.loaned_balance[quote_asset] += margin_cost * self.leverage
             self.positions[symbol]["short"] += amount
             self.positions[symbol]["entry_price"] = price  # Set entry price for short positions
 
@@ -123,18 +121,19 @@ class SimulatedExchange:
         if not entry_price:
             raise ValueError(f"Entry price not set for {side} position in {symbol}.")
 
+        # Adjust positions and calculate PnL
         if side == 'long':
             self.positions[symbol]["long"] -= amount
-            loaned_amount = amount * entry_price
-            self.loaned_balance[base_asset] -= loaned_amount
-            pnl = (price * amount) - loaned_amount - self.get_fee(amount, price)
-            self.real_balance[quote_asset] += pnl
+            pnl = (price - entry_price) * amount - self.get_fee(amount, price)
+            self.real_balance[quote_asset] += pnl + (entry_price * amount / self.leverage)
         elif side == 'short':
             self.positions[symbol]["short"] -= amount
-            loaned_amount = amount * entry_price
-            self.loaned_balance[quote_asset] -= loaned_amount
-            pnl = loaned_amount - (price * amount) - self.get_fee(amount, price)
-            self.real_balance[quote_asset] += pnl
+            pnl = (entry_price - price) * amount - self.get_fee(amount, price)
+            self.real_balance[quote_asset] += pnl + (entry_price * amount / self.leverage)
+
+        # Clear entry price if the position is fully closed
+        if self.positions[symbol][side] == 0:
+            self.positions[symbol]["entry_price"] = None
 
         self._save_persistent_data()
 

@@ -6,7 +6,7 @@ class MessageProcessor:
 
     def process_message(self, message):
         try:
-            print(f"Processing message: {message}")
+            # print(f"Processing message: {message}")
             symbol = message["instrument_id"].replace("-", "/")
             self.arbitrage_detector.update_prices(message)
 
@@ -40,7 +40,7 @@ class MessageProcessor:
             buy_simulator.place_order(symbol, side="buy", amount=base_amount, price=buy_price)
             sell_simulator.place_order(symbol, side="sell", amount=base_amount, price=sell_price)
 
-            print(f"Opened arbitrage: Buy on {buy_exchange} at {buy_price}, Sell on {sell_exchange} at {sell_price}, Spread: {spread:.2f}%")
+            print(f"Opened arbitrage: Long on {buy_exchange} at {buy_price}, Short on {sell_exchange} at {sell_price}, Spread: {spread:.2f}%")
         except Exception as e:
             print(f"Error executing arbitrage: {e}")
 
