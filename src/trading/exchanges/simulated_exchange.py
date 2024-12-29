@@ -1,23 +1,36 @@
-import uuid
+import json
+import os
 from datetime import datetime
 from collections import defaultdict
 
 
 class SimulatedExchange:
-    def __init__(self, exchange_name, initial_funds=None, fee_rate=0.001, leverage=10):
+    def __init__(self, exchange_name, initial_funds=None, fee_rate=0.001, leverage=10, persist=False,
+                 storage_dir="storage"):
         """
         Initialize the simulated exchange with margin trading.
         :param exchange_name: Name of the exchange.
         :param initial_funds: Initial balances, e.g., {'USDT': 10000}.
         :param fee_rate: Trading fee rate as a decimal, e.g., 0.001 for 0.1%.
         :param leverage: Leverage multiplier, e.g., 10 for 10x leverage.
+        :param persist: Whether to persist balances and positions.
         """
         self.exchange_name = exchange_name
-        self.real_balance = defaultdict(float, initial_funds or {})
-        self.loaned_balance = defaultdict(float)  # Tracks loaned funds
-        self.positions = defaultdict(lambda: {"long": 0, "short": 0})  # Track open positions
         self.fee_rate = fee_rate
         self.leverage = leverage
+        self.persist = persist
+        self.storage_file = os.path.join(storage_dir, f"{exchange_name}_state.json") if persist else None
+
+        # Load persistent data or initialize with initial funds
+        if self.persist and os.path.exists(self.storage_file):
+            self._load_persistent_data()
+        else:
+            self.real_balance = defaultdict(float, initial_funds or {})
+            self.loaned_balance = defaultdict(float)
+            self.positions = defaultdict(lambda: {"long": 0, "short": 0})
+            # makedirs
+            os.makedirs(storage_dir, exist_ok=True)
+            self._save_persistent_data()
 
     def get_balance(self):
         """
@@ -28,6 +41,41 @@ class SimulatedExchange:
             "real_balance": dict(self.real_balance),
             "loaned_balance": dict(self.loaned_balance),
         }
+
+    def _save_persistent_data(self):
+        """
+        Save current state to a persistent storage file.
+        """
+        if not self.persist:
+            return
+        state = {
+            "real_balance": dict(self.real_balance),
+            "loaned_balance": dict(self.loaned_balance),
+            "positions": dict(self.positions),
+        }
+        with open(self.storage_file, "w") as file:
+            json.dump(state, file)
+
+    def _load_persistent_data(self):
+        """
+        Load state from a persistent storage file.
+        """
+        with open(self.storage_file, "r") as file:
+            state = json.load(file)
+        self.real_balance = defaultdict(float, state.get("real_balance", {}))
+        self.loaned_balance = defaultdict(float, state.get("loaned_balance", {}))
+        self.positions = defaultdict(lambda: {"long": 0, "short": 0}, state.get("positions", {}))
+
+    def hard_reset(self, initial_funds=None):
+        """
+        Reset all balances and positions to their initial state.
+        :param initial_funds: Dictionary of initial balances, e.g., {'USDT': 10000}.
+        """
+        self.real_balance = defaultdict(float, initial_funds or {})
+        self.loaned_balance = defaultdict(float)
+        self.positions = defaultdict(lambda: {"long": 0, "short": 0})
+        self._save_persistent_data()
+        print(f"[{self.exchange_name}] Hard reset performed. Balances set to initial state.")
 
     def get_fee(self, amount, price):
         """
@@ -65,6 +113,9 @@ class SimulatedExchange:
             self.loaned_balance[quote_asset] += margin_cost
             self.positions[symbol]["short"] += amount
 
+        # Persist the updated state
+        self._save_persistent_data()
+
     def close_position(self, symbol, side, amount, price):
         """
         Close an open position.
@@ -93,6 +144,9 @@ class SimulatedExchange:
             self.loaned_balance[quote_asset] -= amount * price
             pnl = (price * amount / self.leverage) - (price * amount) - self.get_fee(amount, price)
             self.real_balance[quote_asset] += pnl
+
+        # Persist the updated state
+        self._save_persistent_data()
 
         return {
             'symbol': symbol,
