@@ -1,1 +1,1 @@
-{"real_balance": {"USD": 999.5979797979797}, "loaned_balance": {}, "positions": {"BTC/USD": {"long": 0.0, "short": 0.0, "long_entry_price": null, "short_entry_price": null}}}
+{"real_balance": {"USD": 1000, "USDC": 1000, "EUR": 989.8255956112853, "USDT": 1000}, "loaned_balance": {}, "positions": {"ETH/EUR": {"long": 0, "short": 0.03134796238244514, "long_entry_price": null, "short_entry_price": 3213.5}}}

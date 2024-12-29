@@ -18,7 +18,8 @@ class MessageProcessor:
                     elif opportunity["type"] == "close":
                         self._close_positions(opportunity)
             else:
-                print(f"No opportunities for {symbol}.")
+                # print(f"No opportunities for {symbol}.")
+                pass
         except Exception as e:
             print(f"Error processing message: {e}")
 
@@ -40,7 +41,7 @@ class MessageProcessor:
             buy_simulator.place_order(symbol, side="buy", amount=base_amount, price=buy_price)
             sell_simulator.place_order(symbol, side="sell", amount=base_amount, price=sell_price)
 
-            print(f"Opened arbitrage: Long on {buy_exchange} at {buy_price}, Short on {sell_exchange} at {sell_price}, Spread: {spread:.2f}%")
+            print(f"Opened arbitrage: Long on {buy_exchange} at {buy_price}, Short on {sell_exchange} at {sell_price}, Spread: {spread:.2f}% for {symbol}")
         except Exception as e:
             print(f"Error executing arbitrage: {e}")
 

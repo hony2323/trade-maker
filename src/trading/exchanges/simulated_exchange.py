@@ -96,7 +96,7 @@ class SimulatedExchange:
 
         if side == 'buy':  # Long position
             if self.real_balance[quote_asset] < total_cost:
-                raise ValueError(f"Insufficient {quote_asset} balance for margin.")
+                raise ValueError(f"Insufficient {quote_asset} balance for margin. balance: {self.real_balance[quote_asset]}, cost: {total_cost}")
             self.real_balance[quote_asset] -= total_cost
             self.positions[symbol]["long"] += amount
             if self.positions[symbol].get("long_entry_price") is None:
@@ -104,7 +104,7 @@ class SimulatedExchange:
 
         elif side == 'sell':  # Short position
             if self.real_balance[quote_asset] < total_cost:
-                raise ValueError(f"Insufficient {quote_asset} balance for margin.")
+                raise ValueError(f"Insufficient {quote_asset} balance for margin. balance: {self.real_balance[quote_asset]}, cost: {total_cost}")
             self.real_balance[quote_asset] -= total_cost
             self.positions[symbol]["short"] += amount
             if self.positions[symbol].get("short_entry_price") is None:
