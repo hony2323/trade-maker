@@ -23,7 +23,7 @@ class MessageProcessor:
             opportunity = self.arbitrage_detector.detect_opportunity(symbol)
             if opportunity:
                 buy_exchange, sell_exchange, spread = opportunity
-                print(f"Arbitrage opportunity detected: {spread:.2f}%")
+                print(f"Arbitrage opportunity detected: {spread:.2f}% | buy: {buy_exchange}, sell: {sell_exchange}")
                 trade_amount = self.base_trade_amount / self.simulators[buy_exchange].leverage
                 self._execute_arbitrage(symbol, buy_exchange, sell_exchange, trade_amount)
             else:
@@ -43,16 +43,21 @@ class MessageProcessor:
             buy_simulator = self.simulators[buy_exchange]
             sell_simulator = self.simulators[sell_exchange]
 
-            # Place buy and sell orders
+            # Place buy order
             buy_price = buy_simulator.balances[symbol]
-            sell_price = sell_simulator.balances[symbol]
+            buy_order = buy_simulator.place_order(symbol, side="buy", order_type="market", amount=amount,
+                                                  price=buy_price)
 
-            buy_order = buy_simulator.place_order(symbol, side="buy", amount=amount, price=buy_price)
-            sell_order = sell_simulator.place_order(symbol, side="sell", amount=amount, price=sell_price)
+            # Place sell order
+            sell_price = sell_simulator.balances[symbol]
+            sell_order = sell_simulator.place_order(symbol, side="sell", order_type="market", amount=amount,
+                                                    price=sell_price)
 
             # Calculate and log profit
             profit = (sell_price - buy_price) * amount - (buy_order["fee"] + sell_order["fee"])
             print(f"Arbitrage trade executed: Profit = {profit:.2f} {symbol.split('/')[1]}")
 
+        except ValueError as e:
+            print(f"Trade error: {e}")
         except Exception as e:
             print(f"Error executing arbitrage: {e}")

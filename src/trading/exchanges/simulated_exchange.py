@@ -1,132 +1,150 @@
 import uuid
-import json
-import os
 from datetime import datetime
 from collections import defaultdict
 
 
 class SimulatedExchange:
-    def __init__(self, exchange_name, initial_funds, storage_path="storage", fee_rate=0.001, leverage=10, liquidation_threshold=0.2):
+    def __init__(self, exchange_name, initial_funds=None, fee_rate=0.001, leverage=10):
         """
-        Initialize the simulated exchange with margin trading support and persistence.
-        :param exchange_name: Unique name of the exchange (e.g., 'coinbase', 'bybit').
-        :param initial_funds: Dictionary of actual funds (e.g., {'USDT': 1000, 'BTC': 0.5}).
-        :param storage_path: Path for persistent storage.
-        :param fee_rate: Trading fee as a decimal (default: 0.001 = 0.1%).
-        :param leverage: Maximum leverage allowed (default: 10x).
-        :param liquidation_threshold: Margin level at which liquidation occurs (default: 20%).
+        Initialize the simulated exchange with margin trading.
+        :param exchange_name: Name of the exchange.
+        :param initial_funds: Initial balances, e.g., {'USDT': 10000}.
+        :param fee_rate: Trading fee rate as a decimal, e.g., 0.001 for 0.1%.
+        :param leverage: Leverage multiplier, e.g., 10 for 10x leverage.
         """
         self.exchange_name = exchange_name
-        self.storage_path = storage_path
+        self.balances = defaultdict(float, initial_funds or {})
+        self.orders = []
+        self.positions = defaultdict(lambda: {"long": 0, "short": 0})  # Track positions per symbol
         self.fee_rate = fee_rate
         self.leverage = leverage
-        self.liquidation_threshold = liquidation_threshold
-        self.balances = defaultdict(float, initial_funds)
-        self.orders = []
-        self._load_persistent_data()
-
-    def _get_storage_file(self):
-        """Generate the file path for persistent storage."""
-        return os.path.join(self.storage_path, f"{self.exchange_name}_data.json")
-
-    def _load_persistent_data(self):
-        """Load balances and orders from persistent storage, or create the file if it doesn't exist."""
-        os.makedirs(self.storage_path, exist_ok=True)
-        storage_file = self._get_storage_file()
-
-        if not os.path.exists(storage_file):
-            # If the file does not exist, initialize it with default values
-            initial_data = {
-                "balances": dict(self.balances),
-                "orders": [],
-            }
-            with open(storage_file, "w") as file:
-                json.dump(initial_data, file, indent=4)
-        else:
-            # Load existing data from the file
-            with open(storage_file, "r") as file:
-                data = json.load(file)
-                self.balances.update(data.get("balances", {}))
-                self.orders = data.get("orders", [])
-
-    def _save_persistent_data(self):
-        """Save balances and orders to persistent storage."""
-        storage_file = self._get_storage_file()
-        data = {
-            "balances": dict(self.balances),
-            "orders": self.orders,
-        }
-        with open(storage_file, "w") as file:
-            json.dump(data, file, indent=4)
 
     def get_balance(self):
         """Return the current balances."""
         return dict(self.balances)
 
-    def place_order(self, symbol, side, amount, price):
+    def get_fee(self, amount, price):
         """
-        Place a leveraged order and adjust balances accordingly.
-        :param symbol: Trading pair (e.g., 'BTC/USDT').
-        :param side: 'buy' or 'sell'.
-        :param amount: Amount to trade.
-        :param price: Price of the trade.
-        :return: Order details.
+        Calculate the trading fee.
+        :param amount: Amount being traded.
+        :param price: Price per unit.
+        :return: Fee as a float.
+        """
+        return amount * price * self.fee_rate
+
+    def place_order(self, symbol, side, order_type, amount=None, quote_amount=None, price=1):
+        """
+        Place an order with margin trading support.
+        :param symbol: Trading pair, e.g., 'BTC/USDT'.
+        :param side: 'buy' (long) or 'sell' (short).
+        :param order_type: 'market' or 'limit'.
+        :param amount: Order size.
+        :param quote_amount: Quote amount for market orders.
+        :param price: Price per unit.
+        :return: Order details as a dictionary.
         """
         base_asset, quote_asset = symbol.split('/')
-        cost = price * amount
-        margin_cost = cost / self.leverage
-        fee = self.get_fee(symbol, amount, price)
 
-        if side == 'buy':
-            if self.balances[quote_asset] < margin_cost + fee:
-                raise ValueError(f"Insufficient {quote_asset} balance to place buy order.")
-            self.balances[quote_asset] -= (margin_cost + fee)
-            self.balances[base_asset] += amount
-        elif side == 'sell':
-            if self.balances[base_asset] < amount:
-                raise ValueError(f"Insufficient {base_asset} balance to place sell order.")
-            self.balances[base_asset] -= amount
-            self.balances[quote_asset] += (cost - fee)
+        # Determine amount from quote_amount if provided
+        if amount is None and quote_amount is None:
+            raise ValueError("Either 'amount' or 'quote_amount' must be provided.")
+        if amount is None:
+            amount = quote_amount / price
+
+        # Calculate margin requirement
+        margin_cost = (price * amount) / self.leverage
+        fee = self.get_fee(amount, price)
+        total_cost = margin_cost + fee
+
+        # Validate balances based on the type of trade
+        if side == 'buy':  # Long position
+            if self.balances[quote_asset] < total_cost:
+                raise ValueError(f"Insufficient {quote_asset} balance to place long order.")
+        elif side == 'sell':  # Short position
+            if self.balances[quote_asset] < total_cost:
+                raise ValueError(f"Insufficient {quote_asset} balance to place short order.")
 
         # Create the order
         order = {
             'id': str(uuid.uuid4()),
             'symbol': symbol,
             'side': side,
+            'type': order_type,
             'amount': amount,
             'price': price,
+            'status': 'open',
             'margin_cost': margin_cost,
             'fee': fee,
-            'status': 'filled',  # Immediate fill for simplicity
-            'created_at': datetime.utcnow().isoformat(),
+            'created_at': datetime.utcnow(),
         }
         self.orders.append(order)
-        self._save_persistent_data()
-        self.check_liquidation()
+
+        # Simulate immediate execution for market orders
+        if order_type == 'market':
+            self._execute_order(order)
+
         return order
 
-    def get_fee(self, symbol, amount, price):
-        """Calculate the trading fee."""
-        return price * amount * self.fee_rate
+    def _execute_order(self, order):
+        """
+        Execute an order immediately.
+        :param order: The order to execute.
+        """
+        base_asset, quote_asset = order['symbol'].split('/')
+        amount = order['amount']
+        price = order['price']
+        fee = order['fee']
+        margin_cost = order['margin_cost']
 
-    def check_liquidation(self):
-        """Check for liquidation conditions."""
-        for asset, balance in self.balances.items():
-            margin_used = sum(order['margin_cost'] for order in self.orders if order['status'] == 'filled')
-            equity = sum(self.balances.values())  # Total equity across all assets
-            margin_level = equity / margin_used if margin_used > 0 else float('inf')
+        if order['side'] == 'buy':  # Long position
+            self.balances[quote_asset] -= margin_cost + fee
+            self.positions[order['symbol']]["long"] += amount
+        elif order['side'] == 'sell':  # Short position
+            self.balances[quote_asset] -= margin_cost + fee
+            self.positions[order['symbol']]["short"] += amount
 
-            if margin_level < self.liquidation_threshold:
-                print(f"Liquidating positions due to low margin level ({margin_level:.2f}).")
-                self._liquidate_all()
-
-    def _liquidate_all(self):
-        """Liquidate all positions."""
-        self.orders = []
-        for asset in self.balances.keys():
-            self.balances[asset] = 0
-        self._save_persistent_data()
+        order['status'] = 'filled'
+        order['filled_at'] = datetime.utcnow()
 
     def get_positions(self):
-        """Retrieve current open positions."""
-        return [order for order in self.orders if order['status'] == 'filled']
+        """
+        Retrieve open positions.
+        :return: Dictionary of positions by symbol with long and short amounts.
+        """
+        return dict(self.positions)
+
+    def close_position(self, symbol, side, amount, price):
+        """
+        Close an open position.
+        :param symbol: Trading pair, e.g., 'BTC/USDT'.
+        :param side: 'long' or 'short'.
+        :param amount: Amount to close.
+        :param price: Current market price.
+        :return: Dictionary of the closing details.
+        """
+        if symbol not in self.positions:
+            raise ValueError(f"No open positions for symbol {symbol}.")
+        if side not in self.positions[symbol] or self.positions[symbol][side] < amount:
+            raise ValueError(f"Not enough {side} position to close {amount} {symbol}.")
+
+        base_asset, quote_asset = symbol.split('/')
+        pnl = 0
+
+        # Adjust balances and calculate profit/loss
+        if side == 'long':
+            self.positions[symbol]["long"] -= amount
+            pnl = (price * amount) - ((price * amount) / self.leverage) - self.get_fee(amount, price)
+            self.balances[quote_asset] += pnl
+        elif side == 'short':
+            self.positions[symbol]["short"] -= amount
+            pnl = ((price * amount) / self.leverage) - (price * amount) - self.get_fee(amount, price)
+            self.balances[quote_asset] += pnl
+
+        return {
+            'symbol': symbol,
+            'side': side,
+            'amount': amount,
+            'price': price,
+            'pnl': pnl,
+            'closed_at': datetime.utcnow(),
+        }
