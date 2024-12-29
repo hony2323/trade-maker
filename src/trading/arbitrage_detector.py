@@ -16,6 +16,9 @@ class ArbitrageDetector:
         self.price_state = defaultdict(lambda: defaultdict(deque))  # Exchange-symbol price history
 
     def update_prices(self, message):
+        """
+        Update the in-memory price state with the latest message data.
+        """
         exchange_name = message["exchange"]
         symbol = message["instrument_id"].replace("-", "/")
         price = message["price"]
@@ -26,6 +29,11 @@ class ArbitrageDetector:
         self.price_state[exchange_name][symbol].append({"price": price, "timestamp": timestamp})
 
     def detect_opportunity(self, symbol):
+        """
+        Detect arbitrage opportunities for opening or closing positions.
+        :param symbol: Trading pair (e.g., "BTC/USDT").
+        :return: List of opportunities to act on.
+        """
         prices = {}
         for exchange_name, symbols in self.price_state.items():
             if symbol in symbols and symbols[symbol]:
@@ -57,31 +65,28 @@ class ArbitrageDetector:
                             "spread": spread,
                         })
 
-        # Detect opportunities to close positions when prices align
-        for exchange_name, simulator in self.simulators.items():
-            if symbol in simulator.positions:
-                position = simulator.positions[symbol]
-                if position["long"] > 0:  # Close long position
-                    sell_price = prices.get(exchange_name)
-                    if sell_price and abs((sell_price - position["entry_price"]) / position["entry_price"]) <= self.alignment_threshold:
+        # Detect opportunities to close matching positions across exchanges
+        for buy_exchange, buy_price in prices.items():
+            for sell_exchange, sell_price in prices.items():
+                if buy_exchange == sell_exchange:
+                    continue
+                buy_simulator = self.simulators[buy_exchange]
+                sell_simulator = self.simulators[sell_exchange]
+                if (symbol in buy_simulator.positions and buy_simulator.positions[symbol]["long"] > 0 and
+                        symbol in sell_simulator.positions and sell_simulator.positions[symbol]["short"] > 0):
+                    # Check if prices align within the threshold
+                    if abs((buy_price - sell_price) / sell_price) <= self.alignment_threshold:
                         opportunities.append({
                             "type": "close",
                             "symbol": symbol,
-                            "exchange": exchange_name,
-                            "side": "long",
-                            "price": sell_price,
-                            "amount": position["long"],
-                        })
-                if position["short"] > 0:  # Close short position
-                    buy_price = prices.get(exchange_name)
-                    if buy_price and abs((buy_price - position["entry_price"]) / position["entry_price"]) <= self.alignment_threshold:
-                        opportunities.append({
-                            "type": "close",
-                            "symbol": symbol,
-                            "exchange": exchange_name,
-                            "side": "short",
-                            "price": buy_price,
-                            "amount": position["short"],
+                            "buy_exchange": buy_exchange,
+                            "buy_price": buy_price,
+                            "sell_exchange": sell_exchange,
+                            "sell_price": sell_price,
+                            "amount": min(
+                                buy_simulator.positions[symbol]["long"],
+                                sell_simulator.positions[symbol]["short"]
+                            )
                         })
 
         return opportunities if opportunities else None

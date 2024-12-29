@@ -15,7 +15,7 @@ class MessageProcessor:
                     if opportunity["type"] == "open":
                         self._execute_arbitrage(opportunity)
                     elif opportunity["type"] == "close":
-                        self._close_position(opportunity)
+                        self._close_positions(opportunity)
             else:
                 print(f"No opportunities for {symbol}.")
         except Exception as e:
@@ -36,24 +36,28 @@ class MessageProcessor:
             buy_simulator = self.simulators[buy_exchange]
             sell_simulator = self.simulators[sell_exchange]
 
-            buy_simulator.place_order(symbol, "buy", base_amount, buy_price)
-            sell_simulator.place_order(symbol, "sell", base_amount, sell_price)
+            buy_simulator.place_order(symbol, side="buy", amount=base_amount, price=buy_price)
+            sell_simulator.place_order(symbol, side="sell", amount=base_amount, price=sell_price)
 
             print(f"Opened arbitrage: Buy on {buy_exchange} at {buy_price}, Sell on {sell_exchange} at {sell_price}, Spread: {spread:.2f}%")
         except Exception as e:
             print(f"Error executing arbitrage: {e}")
 
-    def _close_position(self, opportunity):
+    def _close_positions(self, opportunity):
         try:
             symbol = opportunity["symbol"]
-            exchange = opportunity["exchange"]
-            side = opportunity["side"]
-            price = opportunity["price"]
+            buy_exchange = opportunity["buy_exchange"]
+            sell_exchange = opportunity["sell_exchange"]
+            buy_price = opportunity["buy_price"]
+            sell_price = opportunity["sell_price"]
             amount = opportunity["amount"]
 
-            simulator = self.simulators[exchange]
-            simulator.close_position(symbol, side, amount, price)
+            buy_simulator = self.simulators[buy_exchange]
+            sell_simulator = self.simulators[sell_exchange]
 
-            print(f"Closed {side} position on {exchange}: {amount} {symbol} at {price}")
+            buy_simulator.close_position(symbol, "long", amount, buy_price)
+            sell_simulator.close_position(symbol, "short", amount, sell_price)
+
+            print(f"Closed positions: Long on {buy_exchange}, Short on {sell_exchange}, Amount: {amount} {symbol}")
         except Exception as e:
-            print(f"Error closing position: {e}")
+            print(f"Error closing positions: {e}")
