@@ -32,7 +32,7 @@ class ArbitrageDetector:
         """
         Detect arbitrage opportunities for a given trading pair.
         :param symbol: Trading pair (e.g., "BTC/USDT").
-        :return: Tuple (buy_exchange, sell_exchange, spread) or None.
+        :return: Tuple (buy_exchange, buy_price, sell_exchange, sell_price, spread) or None.
         """
         prices = {}
         for exchange_name, symbols in self.price_state.items():
@@ -50,9 +50,5 @@ class ArbitrageDetector:
         spread = ((sell_price - buy_price) / buy_price) * 100
 
         if spread >= self.threshold:
-            return buy_exchange, sell_exchange, spread
+            return buy_exchange, buy_price, sell_exchange, sell_price, spread
         return None
-
-    def get_price_state(self):
-        """Return the current in-memory price state."""
-        return self.price_state

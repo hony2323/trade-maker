@@ -32,7 +32,7 @@ class SimulatedExchange:
         """
         return amount * price * self.fee_rate
 
-    def place_order(self, symbol, side, order_type, amount=None, quote_amount=None, price=1):
+    def place_order(self, symbol, side, order_type, amount=None, quote_amount=None, price=None):
         """
         Place an order with margin trading support.
         :param symbol: Trading pair, e.g., 'BTC/USDT'.
@@ -40,9 +40,12 @@ class SimulatedExchange:
         :param order_type: 'market' or 'limit'.
         :param amount: Order size.
         :param quote_amount: Quote amount for market orders.
-        :param price: Price per unit.
+        :param price: Current market price (retrieved from the price state).
         :return: Order details as a dictionary.
         """
+        if price is None:
+            raise ValueError("Price is required for order placement.")
+
         base_asset, quote_asset = symbol.split('/')
 
         # Determine amount from quote_amount if provided
