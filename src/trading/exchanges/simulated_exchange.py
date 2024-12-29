@@ -13,15 +13,21 @@ class SimulatedExchange:
         :param leverage: Leverage multiplier, e.g., 10 for 10x leverage.
         """
         self.exchange_name = exchange_name
-        self.balances = defaultdict(float, initial_funds or {})
-        self.orders = []
-        self.positions = defaultdict(lambda: {"long": 0, "short": 0})  # Track positions per symbol
+        self.real_balance = defaultdict(float, initial_funds or {})
+        self.loaned_balance = defaultdict(float)  # Tracks loaned funds
+        self.positions = defaultdict(lambda: {"long": 0, "short": 0})  # Track open positions
         self.fee_rate = fee_rate
         self.leverage = leverage
 
     def get_balance(self):
-        """Return the current balances."""
-        return dict(self.balances)
+        """
+        Return the current balances, including real and loaned funds.
+        :return: Dictionary of real and loaned balances.
+        """
+        return {
+            "real_balance": dict(self.real_balance),
+            "loaned_balance": dict(self.loaned_balance),
+        }
 
     def get_fee(self, amount, price):
         """
@@ -32,89 +38,32 @@ class SimulatedExchange:
         """
         return amount * price * self.fee_rate
 
-    def place_order(self, symbol, side, order_type, amount=None, quote_amount=None, price=None):
+    def place_order(self, symbol, side, amount, price):
         """
         Place an order with margin trading support.
         :param symbol: Trading pair, e.g., 'BTC/USDT'.
         :param side: 'buy' (long) or 'sell' (short).
-        :param order_type: 'market' or 'limit'.
         :param amount: Order size.
-        :param quote_amount: Quote amount for market orders.
-        :param price: Current market price (retrieved from the price state).
-        :return: Order details as a dictionary.
+        :param price: Current market price.
         """
-        if price is None:
-            raise ValueError("Price is required for order placement.")
-
         base_asset, quote_asset = symbol.split('/')
-
-        # Determine amount from quote_amount if provided
-        if amount is None and quote_amount is None:
-            raise ValueError("Either 'amount' or 'quote_amount' must be provided.")
-        if amount is None:
-            amount = quote_amount / price
-
-        # Calculate margin requirement
         margin_cost = (price * amount) / self.leverage
         fee = self.get_fee(amount, price)
         total_cost = margin_cost + fee
 
-        # Validate balances based on the type of trade
         if side == 'buy':  # Long position
-            if self.balances[quote_asset] < total_cost:
-                raise ValueError(f"Insufficient {quote_asset} balance to place long order.")
+            if self.real_balance[quote_asset] < total_cost:
+                raise ValueError(f"Insufficient {quote_asset} balance for margin.")
+            self.real_balance[quote_asset] -= total_cost
+            self.loaned_balance[base_asset] += amount
+            self.positions[symbol]["long"] += amount
+
         elif side == 'sell':  # Short position
-            if self.balances[quote_asset] < total_cost:
-                raise ValueError(f"Insufficient {quote_asset} balance to place short order.")
-
-        # Create the order
-        order = {
-            'id': str(uuid.uuid4()),
-            'symbol': symbol,
-            'side': side,
-            'type': order_type,
-            'amount': amount,
-            'price': price,
-            'status': 'open',
-            'margin_cost': margin_cost,
-            'fee': fee,
-            'created_at': datetime.utcnow(),
-        }
-        self.orders.append(order)
-
-        # Simulate immediate execution for market orders
-        if order_type == 'market':
-            self._execute_order(order)
-
-        return order
-
-    def _execute_order(self, order):
-        """
-        Execute an order immediately.
-        :param order: The order to execute.
-        """
-        base_asset, quote_asset = order['symbol'].split('/')
-        amount = order['amount']
-        price = order['price']
-        fee = order['fee']
-        margin_cost = order['margin_cost']
-
-        if order['side'] == 'buy':  # Long position
-            self.balances[quote_asset] -= margin_cost + fee
-            self.positions[order['symbol']]["long"] += amount
-        elif order['side'] == 'sell':  # Short position
-            self.balances[quote_asset] -= margin_cost + fee
-            self.positions[order['symbol']]["short"] += amount
-
-        order['status'] = 'filled'
-        order['filled_at'] = datetime.utcnow()
-
-    def get_positions(self):
-        """
-        Retrieve open positions.
-        :return: Dictionary of positions by symbol with long and short amounts.
-        """
-        return dict(self.positions)
+            if self.real_balance[quote_asset] < total_cost:
+                raise ValueError(f"Insufficient {quote_asset} balance for margin.")
+            self.real_balance[quote_asset] -= total_cost
+            self.loaned_balance[quote_asset] += margin_cost
+            self.positions[symbol]["short"] += amount
 
     def close_position(self, symbol, side, amount, price):
         """
@@ -136,12 +85,14 @@ class SimulatedExchange:
         # Adjust balances and calculate profit/loss
         if side == 'long':
             self.positions[symbol]["long"] -= amount
-            pnl = (price * amount) - ((price * amount) / self.leverage) - self.get_fee(amount, price)
-            self.balances[quote_asset] += pnl
+            self.loaned_balance[base_asset] -= amount
+            pnl = (price * amount) - (price * amount / self.leverage) - self.get_fee(amount, price)
+            self.real_balance[quote_asset] += pnl
         elif side == 'short':
             self.positions[symbol]["short"] -= amount
-            pnl = ((price * amount) / self.leverage) - (price * amount) - self.get_fee(amount, price)
-            self.balances[quote_asset] += pnl
+            self.loaned_balance[quote_asset] -= amount * price
+            pnl = (price * amount / self.leverage) - (price * amount) - self.get_fee(amount, price)
+            self.real_balance[quote_asset] += pnl
 
         return {
             'symbol': symbol,

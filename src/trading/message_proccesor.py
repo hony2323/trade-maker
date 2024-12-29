@@ -24,14 +24,16 @@ class MessageProcessor:
             if opportunity:
                 buy_exchange, buy_price, sell_exchange, sell_price, spread = opportunity
                 print(f"Arbitrage opportunity detected: {spread:.2f}%")
-                trade_amount = self.base_trade_amount / self.simulators[buy_exchange].leverage
-                self._execute_arbitrage(symbol, buy_exchange, buy_price, sell_exchange, sell_price, trade_amount)
+
+                # Use the base trade amount (in quote asset, e.g., USDT)
+                quote_amount = self.base_trade_amount * self.simulators[buy_exchange].leverage
+                self._execute_arbitrage(symbol, buy_exchange, buy_price, sell_exchange, sell_price, quote_amount)
             else:
                 print(f"No arbitrage opportunity for {symbol}.")
         except Exception as e:
             print(f"Error processing message: {e}")
 
-    def _execute_arbitrage(self, symbol, buy_exchange, buy_price, sell_exchange, sell_price, amount):
+    def _execute_arbitrage(self, symbol, buy_exchange, buy_price, sell_exchange, sell_price, quote_amount):
         """
         Execute arbitrage trades on the given exchanges.
         :param symbol: Trading pair (e.g., "BTC/USDT").
@@ -39,22 +41,20 @@ class MessageProcessor:
         :param buy_price: Price on the buy exchange.
         :param sell_exchange: Exchange to sell on.
         :param sell_price: Price on the sell exchange.
-        :param amount: Amount to trade.
+        :param quote_amount: Amount of quote asset (e.g., USDT) to use for the trade.
         """
         try:
             buy_simulator = self.simulators[buy_exchange]
             sell_simulator = self.simulators[sell_exchange]
 
-            # Place buy order
-            buy_order = buy_simulator.place_order(symbol, side="buy", amount=amount, price=buy_price, order_type="market")
+            # Calculate base asset amount
+            base_amount = quote_amount / buy_price
 
-            # Place sell order
-            sell_order = sell_simulator.place_order(symbol, side="sell", amount=amount, price=sell_price, order_type="market")
+            # Place buy (long) and sell (short) orders
+            buy_simulator.place_order(symbol, side="buy", amount=base_amount, price=buy_price)
+            sell_simulator.place_order(symbol, side="sell", amount=base_amount, price=sell_price)
 
-            # Calculate and log profit
-            profit = (sell_price - buy_price) * amount - (buy_order["fee"] + sell_order["fee"])
-            print(f"Arbitrage trade executed: Profit = {profit:.2f} {symbol.split('/')[1]}")
-
+            print(f"Opened arbitrage positions: {base_amount} {symbol}")
         except ValueError as e:
             print(f"Trade error: {e}")
         except Exception as e:

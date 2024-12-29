@@ -32,9 +32,9 @@ if __name__ == '__main__':
 
     # Simulate incoming data
     messages = [
-        {"timestamp": 1735413478, "exchange": BYBIT_NAME, "instrument_id": "BTC-USD", "price": 95011.41},
-        {"timestamp": 1735413480, "exchange": COINBASE_NAME, "instrument_id": "BTC-USD", "price": 96000.00},
-        {"timestamp": 1735413482, "exchange": KRAKEN_NAME, "instrument_id": "BTC-USD", "price": 94000.00},
+        {"timestamp": 1735413478, "exchange": BYBIT_NAME, "instrument_id": "BTC-USDT", "price": 95011.41},
+        {"timestamp": 1735413480, "exchange": COINBASE_NAME, "instrument_id": "BTC-USDT", "price": 96000.00},
+        {"timestamp": 1735413482, "exchange": KRAKEN_NAME, "instrument_id": "BTC-USDT", "price": 94000.00},
     ]
 
     # Process messages
