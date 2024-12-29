@@ -1,5 +1,5 @@
 class MessageProcessor:
-    def __init__(self, simulators, arbitrage_detector, base_trade_amount=100):
+    def __init__(self, simulators, arbitrage_detector, base_trade_amount=10):
         """
         Initialize the message processor.
         :param simulators: Dictionary of simulators for each exchange.

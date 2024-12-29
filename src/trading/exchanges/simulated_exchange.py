@@ -54,7 +54,7 @@ class SimulatedExchange:
             "positions": dict(self.positions),
         }
         with open(self.storage_file, "w") as file:
-            json.dump(state, file)
+            json.dump(state, file, indent=4)
 
     def _load_persistent_data(self):
         """
@@ -103,14 +103,14 @@ class SimulatedExchange:
             if self.real_balance[quote_asset] < total_cost:
                 raise ValueError(f"Insufficient {quote_asset} balance for margin.")
             self.real_balance[quote_asset] -= total_cost
-            self.loaned_balance[base_asset] += amount
+            self.loaned_balance[base_asset] += amount * self.leverage
             self.positions[symbol]["long"] += amount
 
         elif side == 'sell':  # Short position
             if self.real_balance[quote_asset] < total_cost:
                 raise ValueError(f"Insufficient {quote_asset} balance for margin.")
             self.real_balance[quote_asset] -= total_cost
-            self.loaned_balance[quote_asset] += margin_cost
+            self.loaned_balance[quote_asset] += margin_cost * self.leverage
             self.positions[symbol]["short"] += amount
 
         # Persist the updated state
@@ -136,12 +136,12 @@ class SimulatedExchange:
         # Adjust balances and calculate profit/loss
         if side == 'long':
             self.positions[symbol]["long"] -= amount
-            self.loaned_balance[base_asset] -= amount
+            self.loaned_balance[base_asset] -= amount * self.leverage
             pnl = (price * amount) - (price * amount / self.leverage) - self.get_fee(amount, price)
             self.real_balance[quote_asset] += pnl
         elif side == 'short':
             self.positions[symbol]["short"] -= amount
-            self.loaned_balance[quote_asset] -= amount * price
+            self.loaned_balance[quote_asset] -= amount * price * self.leverage
             pnl = (price * amount / self.leverage) - (price * amount) - self.get_fee(amount, price)
             self.real_balance[quote_asset] += pnl
 

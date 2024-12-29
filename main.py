@@ -37,6 +37,12 @@ def main():
          "price": 50000},
         {"timestamp": int(datetime.utcnow().timestamp()), "exchange": "kraken", "instrument_id": "BTC-USD",
          "price": 50050},
+        {"timestamp": int(datetime.utcnow().timestamp()), "exchange": "coinbase", "instrument_id": "BTC-USD",
+         "price": 49800},
+        {"timestamp": int(datetime.utcnow().timestamp()), "exchange": "bybit", "instrument_id": "BTC-USD",
+         "price": 50200},
+        {"timestamp": int(datetime.utcnow().timestamp()), "exchange": "kraken", "instrument_id": "BTC-USD",
+         "price": 50000},
     ]
 
     # Process each message
