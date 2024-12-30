@@ -1,3 +1,6 @@
+from src.logger import logger
+
+
 class MessageProcessor:
     def __init__(self, simulators, arbitrage_detector, base_trade_amount=10):
         self.simulators = simulators
@@ -41,7 +44,7 @@ class MessageProcessor:
             buy_simulator.place_order(symbol, side="buy", amount=base_amount, price=buy_price)
             sell_simulator.place_order(symbol, side="sell", amount=base_amount, price=sell_price)
 
-            print(f"Opened arbitrage: Long on {buy_exchange} at {buy_price}, Short on {sell_exchange} at {sell_price}, Spread: {spread:.2f}% for {symbol}")
+            logger.info(f"Opened arbitrage: Long on {buy_exchange} at {buy_price}, Short on {sell_exchange} at {sell_price}, Spread: {spread:.2f}% for {symbol}")
         except Exception as e:
             print(f"Error executing arbitrage: {e}")
 
@@ -66,11 +69,13 @@ class MessageProcessor:
             pnl1 = buy_result["pnl"]
             pnl2 = sell_result["pnl"]
             total_pnl = pnl1 + pnl2
-            buy_entry_price = buy_simulator.positions[symbol]["long_entry_price"]
-            sell_entry_price = sell_simulator.positions[symbol]["short_entry_price"]
+            buy_entry_price = buy_result["entry_price"]
+            sell_entry_price = sell_result["entry_price"]
+            # buy_entry_price = buy_simulator.positions[symbol]["long_entry_price"]
+            # sell_entry_price = sell_simulator.positions[symbol]["short_entry_price"]
 
             # Print summary
-            print(
+            logger.info(
                 f"Closed positions: Long on {buy_exchange} (Entry: {buy_entry_price}, Close: {buy_price}) "
                 f"and Short on {sell_exchange} (Entry: {sell_entry_price}, Close: {sell_price}), "
                 f"Amount: {amount} {symbol}, "

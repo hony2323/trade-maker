@@ -3,6 +3,8 @@ import os
 from datetime import datetime
 from collections import defaultdict
 
+from src.logger import logger
+
 
 class SimulatedExchange:
     def __init__(self, exchange_name, initial_funds=None, fee_rate=0.001, leverage=10, persist=False,
@@ -77,7 +79,7 @@ class SimulatedExchange:
         self.loaned_balance = defaultdict(float)
         self.positions = defaultdict(lambda: {"long": 0, "short": 0, "long_entry_price": None, "short_entry_price": None})
         self._save_persistent_data()
-        print(f"[{self.exchange_name}] Hard reset performed. Balances set to initial state.")
+        logger.debug(f"[{self.exchange_name}] Hard reset performed. Balances set to initial state.")
 
     def get_fee(self, amount, price):
         """
@@ -120,7 +122,7 @@ class SimulatedExchange:
 
         base_asset, quote_asset = symbol.split('/')
         pnl = 0
-
+        entry_price = None
         if side == 'long':
             entry_price = self.positions[symbol].get("long_entry_price")
             if not entry_price:
@@ -155,5 +157,6 @@ class SimulatedExchange:
             'amount': amount,
             'price': price,
             'pnl': pnl,
+            "entry_price": entry_price,
             'closed_at': datetime.utcnow(),
         }
