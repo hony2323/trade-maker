@@ -1,6 +1,8 @@
 import json
 import time
 
+from src.logger import logger
+
 
 class MarginTradingSimulator:
     def __init__(self, balance, fees, leverage_limit, storage_path):
@@ -107,7 +109,7 @@ class MarginTradingSimulator:
             dict: A summary of closed positions with PnL for each symbol.
         """
         if not self.positions:
-            raise ValueError("No open positions to close.")
+            logger.warn("No open positions to close.")
 
         closed_positions = {}
 

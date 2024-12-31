@@ -17,6 +17,7 @@ class ArbitrageDetector:
     def detect_opportunity(self, symbol, latest_exchange):
         """
         Detect arbitrage opportunities for a symbol, focusing on the latest exchange update.
+        The spread is calculated as a percentage.
         Returns a list of all opportunities.
         """
         if symbol not in self.prices or len(self.prices[symbol]) < 2:
@@ -30,24 +31,24 @@ class ArbitrageDetector:
             if exchange == latest_exchange:
                 continue
 
-            spread = abs(latest_price - price)
-            if spread >= self.spread_threshold:
+            # Calculate spread as a percentage
+            spread_percentage = 100 * abs(latest_price - price) / max(latest_price, price)
+
+            if spread_percentage >= self.spread_threshold:
                 if latest_price > price:
                     opportunities.append({
                         'symbol': symbol,
                         'short': {'exchange': latest_exchange, 'price': latest_price},
                         'long': {'exchange': exchange, 'price': price},
-                        'spread': spread,
+                        'spread_percentage': spread_percentage,
                     })
                 else:
                     opportunities.append({
                         'symbol': symbol,
                         'short': {'exchange': exchange, 'price': price},
                         'long': {'exchange': latest_exchange, 'price': latest_price},
-                        'spread': spread,
+                        'spread_percentage': spread_percentage,
                     })
-
-        logger.info(f"Detected {len(opportunities)} opportunities for {symbol}: {opportunities}")
         return opportunities
 
     def detect_closing_opportunity(self, open_positions):
@@ -64,8 +65,8 @@ class ArbitrageDetector:
             if short_price is None or long_price is None:
                 continue
 
-            spread = abs(short_price - long_price)
-            if spread <= self.alignment_threshold:
+            spread_percentage = 100 * abs(short_price - long_price) / short_price
+            if spread_percentage <= self.alignment_threshold:
                 logger.info(f"Closing opportunity detected: {position}")
                 closing_opportunities.append(position)
 

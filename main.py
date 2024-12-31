@@ -9,8 +9,8 @@ from src.trading.message_proccesor import MessageProcessor
 
 
 def main():
-    spread_threshold = 0.005  # 0.5% spread for arbitrage
-    alignment_threshold = 0.001  # 0.1% spread for closing positions
+    spread_threshold = 0.25  # 0.5% spread for arbitrage
+    alignment_threshold = 0.2  # 0.1% spread for closing positions
     exchanges = ['Bybit', 'Coinbase', 'Kraken']
     initial_balance = 10000
 

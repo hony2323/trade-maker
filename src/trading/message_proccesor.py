@@ -18,6 +18,7 @@ class MessageProcessor:
         self.detector.update_price(exchange, symbol, price)
 
         opportunities = self.detector.detect_opportunity(symbol, exchange)
+
         for opportunity in opportunities:
             self.handle_opportunity(opportunity)
 
@@ -45,6 +46,7 @@ class MessageProcessor:
         pair_key = f"{short['exchange']}-{long['exchange']}"
         if symbol in self.open_positions and pair_key in self.open_positions[symbol]:
             return  # Skip if position already exists
+        logger.info(f"{symbol}: {opportunity}")
 
         # Open positions
         short_sim = self.simulators[short['exchange']]
