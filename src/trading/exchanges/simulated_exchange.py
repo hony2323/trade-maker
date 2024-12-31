@@ -29,7 +29,8 @@ class SimulatedExchange:
         else:
             self.real_balance = defaultdict(float, initial_funds or {})
             self.loaned_balance = defaultdict(float)
-            self.positions = defaultdict(lambda: {"long": 0, "short": 0, "long_entry_price": None, "short_entry_price": None})
+            self.positions = defaultdict(
+                lambda: {"long": 0, "short": 0, "long_entry_price": None, "short_entry_price": None})
             self.orders = []
             # makedirs
             os.makedirs(storage_dir, exist_ok=True)
@@ -80,7 +81,8 @@ class SimulatedExchange:
         """
         self.real_balance = defaultdict(float, initial_funds or {})
         self.loaned_balance = defaultdict(float)
-        self.positions = defaultdict(lambda: {"long": 0, "short": 0, "long_entry_price": None, "short_entry_price": None})
+        self.positions = defaultdict(
+            lambda: {"long": 0, "short": 0, "long_entry_price": None, "short_entry_price": None})
         self.orders = []
         self._save_persistent_data()
         logger.debug(f"[{self.exchange_name}] Hard reset performed. Balances set to initial state.")
@@ -97,33 +99,44 @@ class SimulatedExchange:
     def place_order(self, symbol, side, amount, price):
         base_asset, quote_asset = symbol.split('/')
         margin_cost = (price * amount) / self.leverage
-        fee = self.get_fee(amount, price)
-        total_cost = margin_cost + fee
+        # fee = self.get_fee(amount, price)
+        fee = amount * self.fee_rate  # the fee is taken from the amount, not the total cost
+        total_cost = margin_cost
+        real_amount = amount - fee
 
         if side == 'buy':  # Long position
             if self.real_balance[quote_asset] < total_cost:
-                raise ValueError(f"Insufficient {quote_asset} balance for margin. balance: {self.real_balance[quote_asset]}, cost: {total_cost}")
+                raise ValueError(
+                    f"Insufficient {quote_asset} balance for margin. balance: {self.real_balance[quote_asset]}, cost: {total_cost}")
             self.real_balance[quote_asset] -= total_cost
-            self.positions[symbol]["long"] += amount
+            self.positions[symbol]["long"] += real_amount
             if self.positions[symbol].get("long_entry_price") is None:
                 self.positions[symbol]["long_entry_price"] = price  # Set entry price for long positions
 
         elif side == 'sell':  # Short position
             if self.real_balance[quote_asset] < total_cost:
-                raise ValueError(f"Insufficient {quote_asset} balance for margin. balance: {self.real_balance[quote_asset]}, cost: {total_cost}")
+                raise ValueError(
+                    f"Insufficient {quote_asset} balance for margin. balance: {self.real_balance[quote_asset]}, cost: {total_cost}")
             self.real_balance[quote_asset] -= total_cost
-            self.positions[symbol]["short"] += amount
+            self.positions[symbol]["short"] += real_amount
             if self.positions[symbol].get("short_entry_price") is None:
                 self.positions[symbol]["short_entry_price"] = price  # Set entry price for short positions
-        self.orders += [{
+        order = {
             'symbol': symbol,
             'side': side,
             'amount': amount,
+            'real_amount': real_amount,
             'price': price,
+            "margin_cost": margin_cost,
+            "total_cost": total_cost,
+            "quote_asset": quote_asset,
+            "base_asset": base_asset,
             'fee': fee,
             'created_at': datetime.utcnow().isoformat(),
-        }]
+        }
+        self.orders += [order]
         self._save_persistent_data()
+        return order
 
     def close_position(self, symbol, side, amount, price):
         if symbol not in self.positions:
@@ -159,22 +172,18 @@ class SimulatedExchange:
             # Clear entry price if the short position is fully closed
             if self.positions[symbol]["short"] == 0:
                 self.positions[symbol]["short_entry_price"] = None
-        self.orders += [{
-            'symbol': symbol,
-            'side': side,
-            'amount': amount,
-            'price': price,
-            'pnl': pnl,
-            'created_at': datetime.utcnow().isoformat(),
-        }]
-        self._save_persistent_data()
 
-        return {
+        if self.positions[symbol]["long"] is None and self.positions[symbol]["short"] is None:
+            del self.positions[symbol]
+        order = {
             'symbol': symbol,
             'side': side,
             'amount': amount,
             'price': price,
-            'pnl': pnl,
-            "entry_price": entry_price,
+            'pnl': pnl,  # pnl is redundant
             'closed_at': datetime.utcnow(),
         }
+        self.orders += [order]
+        self._save_persistent_data()
+
+        return order
