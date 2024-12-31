@@ -1,3 +1,6 @@
+from src.logger import logger
+
+
 class ArbitrageDetector:
     def __init__(self, spread_threshold, alignment_threshold):
         self.spread_threshold = spread_threshold
@@ -6,6 +9,7 @@ class ArbitrageDetector:
 
     def update_price(self, exchange, symbol, price):
         """Update the latest price for a symbol on an exchange."""
+        logger.debug(f"Updating price for {symbol} on {exchange}: {price}")
         if symbol not in self.prices:
             self.prices[symbol] = {}
         self.prices[symbol][exchange] = price
@@ -13,20 +17,19 @@ class ArbitrageDetector:
     def detect_opportunity(self, symbol, latest_exchange):
         """
         Detect arbitrage opportunities for a symbol, focusing on the latest exchange update.
+        Returns a list of all opportunities.
         """
         if symbol not in self.prices or len(self.prices[symbol]) < 2:
-            return None
+            logger.debug(f"No arbitrage opportunities for {symbol}: insufficient exchanges.")
+            return []
 
-        # Find the latest price from the updated exchange
         latest_price = self.prices[symbol][latest_exchange]
         opportunities = []
 
-        # Compare with all other exchanges for the same symbol
         for exchange, price in self.prices[symbol].items():
             if exchange == latest_exchange:
                 continue
 
-            # Determine if there's an arbitrage opportunity
             spread = abs(latest_price - price)
             if spread >= self.spread_threshold:
                 if latest_price > price:
@@ -44,32 +47,26 @@ class ArbitrageDetector:
                         'spread': spread,
                     })
 
-        # Return the first detected opportunity (or refine logic to pick the best one)
-        return opportunities[0] if opportunities else None
+        logger.info(f"Detected {len(opportunities)} opportunities for {symbol}: {opportunities}")
+        return opportunities
 
     def detect_closing_opportunity(self, open_positions):
-        """
-        Detect opportunities to close counter positions based on alignment threshold.
-        """
+        """Detect closing opportunities."""
         closing_opportunities = []
         for position in open_positions:
             symbol = position['symbol']
             short_exchange = position['short']['exchange']
             long_exchange = position['long']['exchange']
 
-            if symbol not in self.prices:
-                continue
-
-            # Get the latest prices for the involved exchanges
             short_price = self.prices[symbol].get(short_exchange)
             long_price = self.prices[symbol].get(long_exchange)
 
             if short_price is None or long_price is None:
                 continue
 
-            # Check if the spread has collapsed within the alignment threshold
             spread = abs(short_price - long_price)
             if spread <= self.alignment_threshold:
+                logger.info(f"Closing opportunity detected: {position}")
                 closing_opportunities.append(position)
 
         return closing_opportunities

@@ -99,7 +99,8 @@ class MarginTradingSimulator:
 class Position:
     def __init__(self, symbol):
         self.symbol = symbol
-        self.amount = 0
+        self.quote_amount = 0
+        self.base_amount = 0
         self.side = None
         self.entry_price = None
         self.leverage = None
@@ -107,14 +108,15 @@ class Position:
         self.loaned_balance = 0
 
     def add(self, amount, price, side, leverage, fees):
-        self.amount += amount
+        self.quote_amount += amount
+        self.base_amount = self.quote_amount / price
         self.entry_price = price
         self.side = side
         self.leverage = leverage
         self.fees = fees
 
     def close(self, amount, price):
-        if amount > self.amount:
+        if amount > self.quote_amount:
             raise ValueError("Amount exceeds the position size.")
 
         # Calculate PnL
@@ -122,18 +124,19 @@ class Position:
         fees = amount * self.fees
 
         # Update position
-        self.amount -= amount
+        self.quote_amount -= amount
+        self.base_amount = self.quote_amount / price
         self.fees += fees
 
         return pnl, fees
 
     def is_empty(self):
-        return self.amount == 0
+        return self.quote_amount == 0
 
     def serialize(self):
         return {
             'symbol': self.symbol,
-            'amount': self.amount,
+            'amount': self.quote_amount,
             'side': self.side,
             'entry_price': self.entry_price,
             'leverage': self.leverage,
@@ -144,7 +147,8 @@ class Position:
     @staticmethod
     def deserialize(state):
         position = Position(state['symbol'])
-        position.amount = state['amount']
+        position.quote_amount = state['quote_amount']
+        position.base_amount = state['base_amount']
         position.side = state['side']
         position.entry_price = state['entry_price']
         position.leverage = state['leverage']
