@@ -16,7 +16,8 @@ def main():
 
     simulators = {exchange: MarginTradingSimulator(
         initial_balance,
-        {'maker': 0.001, 'taker': 0.002, 'borrow': 0.0001},
+        # {'maker': 0.001, 'taker': 0.002, 'borrow': 0.0001}, # maker 1%, taker 2%, borrow 0.01%
+        {'maker': 0.0, 'taker': 0.0, 'borrow': 0.0}, # maker 1%, taker 2%, borrow 0.01%
         5,
         f'storage/{exchange}_simulator.json'
     ) for exchange in exchanges}
@@ -49,6 +50,8 @@ def main():
     finally:
         consumer.close()  # Ensure the connection is closed properly
         logger.info("Application stopped.")
+        closed_positions = message_processor.close_all_positions()  # Close all open positions
+        logger.info("Closed all open positions")
 
 if __name__ == "__main__":
     main()

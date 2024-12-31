@@ -70,3 +70,21 @@ class ArbitrageDetector:
                 closing_opportunities.append(position)
 
         return closing_opportunities
+
+    def get_prices_for_exchange(self, exchange):
+        """
+        Get all prices for a specific exchange.
+
+        Args:
+            exchange (str): The name of the exchange to fetch prices for.
+
+        Returns:
+            dict: A dictionary of symbols and their corresponding prices on the specified exchange.
+        """
+        exchange_prices = {
+            symbol: exchanges[exchange]
+            for symbol, exchanges in self.prices.items()
+            if exchange in exchanges
+        }
+        logger.debug(f"Prices for exchange {exchange}: {exchange_prices}")
+        return exchange_prices

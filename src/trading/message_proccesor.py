@@ -31,7 +31,7 @@ class MessageProcessor:
         """Save the state of all simulators."""
         for simulator in self.simulators.values():
             simulator.save_state()
-            logger.info(f"Simulator state saved for {simulator}")
+            logger.debug(f"Simulator state saved for {simulator}")
 
     # Additional methods remain the same as before
 
@@ -79,3 +79,12 @@ class MessageProcessor:
     def get_open_positions(self, symbol):
         """Get open positions for a symbol."""
         return self.open_positions.get(symbol, {}).values()
+
+    def close_all_positions(self):
+        """Close all open positions."""
+        closed_positions = []
+        for simulator_name, simulator in self.simulators.items():
+            prices = self.detector.get_prices_for_exchange(simulator_name)
+            closed_positions += [simulator.close_all_positions(prices)]
+            simulator.save_state()
+        return closed_positions
