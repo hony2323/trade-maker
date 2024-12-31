@@ -1,6 +1,3 @@
-from src.logger import logger
-
-
 class MessageProcessor:
     def __init__(self, simulators, arbitrage_detector):
         self.simulators = simulators  # Dict of simulators by exchange
@@ -17,7 +14,7 @@ class MessageProcessor:
         self.detector.update_price(exchange, symbol, price)
 
         # Check for arbitrage opportunities
-        opportunity = self.detector.detect_opportunity(symbol)
+        opportunity = self.detector.detect_opportunity(symbol, exchange)
         if opportunity:
             self.handle_opportunity(opportunity)
 
@@ -25,6 +22,9 @@ class MessageProcessor:
         closing_opportunities = self.detector.detect_closing_opportunity(self.get_open_positions(symbol))
         for opportunity in closing_opportunities:
             self.handle_closing(opportunity)
+
+        # Save the state of all simulators
+        self.save_state()
 
     def handle_opportunity(self, opportunity):
         """Open counter positions for an arbitrage opportunity."""
@@ -66,6 +66,11 @@ class MessageProcessor:
         pair_key = f"{short['exchange']}-{long['exchange']}"
         if symbol in self.open_positions and pair_key in self.open_positions[symbol]:
             del self.open_positions[symbol][pair_key]
+
+    def save_state(self):
+        """Save the state of all simulators."""
+        for simulator in self.simulators.values():
+            simulator.save_state()
 
     def get_open_positions(self, symbol):
         """Get open positions for a symbol."""
