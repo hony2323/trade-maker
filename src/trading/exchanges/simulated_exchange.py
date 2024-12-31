@@ -30,6 +30,7 @@ class SimulatedExchange:
             self.real_balance = defaultdict(float, initial_funds or {})
             self.loaned_balance = defaultdict(float)
             self.positions = defaultdict(lambda: {"long": 0, "short": 0, "long_entry_price": None, "short_entry_price": None})
+            self.orders = []
             # makedirs
             os.makedirs(storage_dir, exist_ok=True)
             self._save_persistent_data()
@@ -56,9 +57,10 @@ class SimulatedExchange:
             "real_balance": dict(self.real_balance),
             "loaned_balance": dict(self.loaned_balance),
             "positions": dict(self.positions),  # Save the updated structure
+            "orders": self.orders,
         }
         with open(self.storage_file, "w") as file:
-            json.dump(state, file)
+            json.dump(state, file, indent=4)
 
     def _load_persistent_data(self):
         with open(self.storage_file, "r") as file:
@@ -69,6 +71,7 @@ class SimulatedExchange:
             lambda: {"long": 0, "short": 0, "long_entry_price": None, "short_entry_price": None},
             state.get("positions", {})
         )
+        self.orders = state.get("orders", [])
 
     def hard_reset(self, initial_funds=None):
         """
@@ -78,6 +81,7 @@ class SimulatedExchange:
         self.real_balance = defaultdict(float, initial_funds or {})
         self.loaned_balance = defaultdict(float)
         self.positions = defaultdict(lambda: {"long": 0, "short": 0, "long_entry_price": None, "short_entry_price": None})
+        self.orders = []
         self._save_persistent_data()
         logger.debug(f"[{self.exchange_name}] Hard reset performed. Balances set to initial state.")
 
@@ -111,7 +115,14 @@ class SimulatedExchange:
             self.positions[symbol]["short"] += amount
             if self.positions[symbol].get("short_entry_price") is None:
                 self.positions[symbol]["short_entry_price"] = price  # Set entry price for short positions
-
+        self.orders += [{
+            'symbol': symbol,
+            'side': side,
+            'amount': amount,
+            'price': price,
+            'fee': fee,
+            'created_at': datetime.utcnow().isoformat(),
+        }]
         self._save_persistent_data()
 
     def close_position(self, symbol, side, amount, price):
@@ -148,7 +159,14 @@ class SimulatedExchange:
             # Clear entry price if the short position is fully closed
             if self.positions[symbol]["short"] == 0:
                 self.positions[symbol]["short_entry_price"] = None
-
+        self.orders += [{
+            'symbol': symbol,
+            'side': side,
+            'amount': amount,
+            'price': price,
+            'pnl': pnl,
+            'created_at': datetime.utcnow().isoformat(),
+        }]
         self._save_persistent_data()
 
         return {

@@ -21,7 +21,7 @@ def main():
 
     # Create ArbitrageDetector
     simulators = {COINBASE_NAME: coinbase, BYBIT_NAME: bybit, KRAKEN_NAME: kraken}
-    arbitrage_detector = ArbitrageDetector(simulators, threshold=0.22)
+    arbitrage_detector = ArbitrageDetector(simulators, threshold=0.33)
 
     # Create MessageProcessor
     message_processor = MessageProcessor(simulators, arbitrage_detector, base_trade_amount=10)
