@@ -19,7 +19,7 @@ class ArbitrageDetector:
             self.price_state[exchange_name][symbol].popleft()
         self.price_state[exchange_name][symbol].append({"price": price, "timestamp": timestamp})
 
-    def detect_opportunity(self, symbol):
+    def detect_opportunity(self, symbol, position_tracker):
         prices = {}
         for exchange_name, symbols in self.price_state.items():
             if symbol in symbols and symbols[symbol]:
@@ -38,9 +38,10 @@ class ArbitrageDetector:
                 pair_key = f"{buy_exchange}-{sell_exchange}"
                 reverse_pair_key = f"{sell_exchange}-{buy_exchange}"
                 spread = ((sell_price - buy_price) / buy_price) * 100
-
+                if position_tracker.get(pair_key, {}).get(symbol) or position_tracker.get(reverse_pair_key, {}).get(symbol):
+                    continue
                 # Check for existing positions and prevent duplicate trades
-                if spread >= self.threshold and pair_key not in self.arbitrage_pairs and reverse_pair_key not in self.arbitrage_pairs:
+                if spread >= self.threshold:
                     opportunities.append({
                         "type": "open",
                         "symbol": symbol,
