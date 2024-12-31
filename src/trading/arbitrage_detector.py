@@ -1,83 +1,75 @@
-from collections import defaultdict, deque
-
 class ArbitrageDetector:
-    def __init__(self, simulators, threshold=0.5, alignment_threshold=0.01, history_size=5):
-        self.simulators = simulators
-        self.threshold = threshold
+    def __init__(self, spread_threshold, alignment_threshold):
+        self.spread_threshold = spread_threshold
         self.alignment_threshold = alignment_threshold
-        self.history_size = history_size
-        self.price_state = defaultdict(lambda: defaultdict(deque))  # Exchange-symbol price history
-        self.arbitrage_pairs = set()  # Track active arbitrage pairs
+        self.prices = {}  # e.g., {'ADA-USD': {'Bybit': 0.8482, 'Binance': 0.845}}
 
-    def update_prices(self, message):
-        exchange_name = message["exchange"]
-        symbol = message["instrument_id"].replace("-", "/")
-        price = message["price"]
-        timestamp = message["timestamp"]
+    def update_price(self, exchange, symbol, price):
+        """Update the latest price for a symbol on an exchange."""
+        if symbol not in self.prices:
+            self.prices[symbol] = {}
+        self.prices[symbol][exchange] = price
 
-        if len(self.price_state[exchange_name][symbol]) >= self.history_size:
-            self.price_state[exchange_name][symbol].popleft()
-        self.price_state[exchange_name][symbol].append({"price": price, "timestamp": timestamp})
-
-    def detect_opportunity(self, symbol, position_tracker):
-        prices = {}
-        for exchange_name, symbols in self.price_state.items():
-            if symbol in symbols and symbols[symbol]:
-                prices[exchange_name] = symbols[symbol][-1]["price"]
-
-        if len(prices) < 2:
+    def detect_opportunity(self, symbol, latest_exchange):
+        """
+        Detect arbitrage opportunities for a symbol, focusing on the latest exchange update.
+        """
+        if symbol not in self.prices or len(self.prices[symbol]) < 2:
             return None
 
+        # Find the latest price from the updated exchange
+        latest_price = self.prices[symbol][latest_exchange]
         opportunities = []
 
-        # Detect arbitrage opportunities for opening positions
-        for buy_exchange, buy_price in prices.items():
-            for sell_exchange, sell_price in prices.items():
-                if buy_exchange == sell_exchange:
-                    continue
-                pair_key = f"{buy_exchange}-{sell_exchange}"
-                reverse_pair_key = f"{sell_exchange}-{buy_exchange}"
-                spread = ((sell_price - buy_price) / buy_price) * 100
-                if position_tracker.get(pair_key, {}).get(symbol) or position_tracker.get(reverse_pair_key, {}).get(symbol):
-                    continue
-                # Check for existing positions and prevent duplicate trades
-                if spread >= self.threshold:
+        # Compare with all other exchanges for the same symbol
+        for exchange, price in self.prices[symbol].items():
+            if exchange == latest_exchange:
+                continue
+
+            # Determine if there's an arbitrage opportunity
+            spread = abs(latest_price - price)
+            if spread >= self.spread_threshold:
+                if latest_price > price:
                     opportunities.append({
-                        "type": "open",
-                        "symbol": symbol,
-                        "buy_exchange": buy_exchange,
-                        "buy_price": buy_price,
-                        "sell_exchange": sell_exchange,
-                        "sell_price": sell_price,
-                        "spread": spread,
+                        'symbol': symbol,
+                        'short': {'exchange': latest_exchange, 'price': latest_price},
+                        'long': {'exchange': exchange, 'price': price},
+                        'spread': spread,
                     })
-                    self.arbitrage_pairs.add(pair_key)
+                else:
+                    opportunities.append({
+                        'symbol': symbol,
+                        'short': {'exchange': exchange, 'price': price},
+                        'long': {'exchange': latest_exchange, 'price': latest_price},
+                        'spread': spread,
+                    })
 
-        # Detect opportunities to close matching positions across exchanges
-        for buy_exchange, buy_price in prices.items():
-            for sell_exchange, sell_price in prices.items():
-                if buy_exchange == sell_exchange:
-                    continue
-                pair_key = f"{buy_exchange}-{sell_exchange}"
-                if pair_key in self.arbitrage_pairs:
-                    buy_simulator = self.simulators[buy_exchange]
-                    sell_simulator = self.simulators[sell_exchange]
-                    if (symbol in buy_simulator.positions and buy_simulator.positions[symbol]["long"] > 0 and
-                            symbol in sell_simulator.positions and sell_simulator.positions[symbol]["short"] > 0):
-                        # Check if prices align within the threshold
-                        if abs((buy_price - sell_price) / sell_price) * 100 <= self.alignment_threshold:
-                            opportunities.append({
-                                "type": "close",
-                                "symbol": symbol,
-                                "buy_exchange": buy_exchange,
-                                "buy_price": buy_price,
-                                "sell_exchange": sell_exchange,
-                                "sell_price": sell_price,
-                                "amount": min(
-                                    buy_simulator.positions[symbol]["long"],
-                                    sell_simulator.positions[symbol]["short"]
-                                ),
-                                "pair_key": pair_key,
-                            })
+        # Return the first detected opportunity (or refine logic to pick the best one)
+        return opportunities[0] if opportunities else None
 
-        return opportunities if opportunities else None
+    def detect_closing_opportunity(self, open_positions):
+        """
+        Detect opportunities to close counter positions based on alignment threshold.
+        """
+        closing_opportunities = []
+        for position in open_positions:
+            symbol = position['symbol']
+            short_exchange = position['short']['exchange']
+            long_exchange = position['long']['exchange']
+
+            if symbol not in self.prices:
+                continue
+
+            # Get the latest prices for the involved exchanges
+            short_price = self.prices[symbol].get(short_exchange)
+            long_price = self.prices[symbol].get(long_exchange)
+
+            if short_price is None or long_price is None:
+                continue
+
+            # Check if the spread has collapsed within the alignment threshold
+            spread = abs(short_price - long_price)
+            if spread <= self.alignment_threshold:
+                closing_opportunities.append(position)
+
+        return closing_opportunities
